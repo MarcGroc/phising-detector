@@ -34,7 +34,7 @@ jobs:
       - name: Install uv and create venv
         run: |
           pip install uv
-          uv venv
+          uv venv 
 
       - name: Install dependencies
         run: uv pip install -e .[dev]
