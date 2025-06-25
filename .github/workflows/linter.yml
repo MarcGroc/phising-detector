@@ -1,0 +1,44 @@
+name: linter
+on:
+  push:
+    branches:
+      - dev
+      - master
+    paths:
+      - 'src/**'
+      - 'utils/**'
+      - 'lib/**'
+      - 'tests/**'
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-cache-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            uv-cache-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv pip install -e .[dev]
+
+      - name: Run linter ruff
+        run: uv ruff check .
+
+      - name: Run ruff formatter
+        run: uv ruff format --check .

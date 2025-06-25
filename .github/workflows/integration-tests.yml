@@ -1,0 +1,50 @@
+name: Integration tests
+on:
+  push:
+    branches:
+      - dev
+      - master
+    paths:
+      - 'src/**'
+      - 'utils/**'
+      - 'lib/**'
+      - 'tests/**'
+
+jobs:
+  tests:
+    runs-on: ubuntu-22.04
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pytest_db
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-cache-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            uv-cache-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv pip install -e .[dev]
+
+      - name: Run tests
+        env:
+          DATABASE_URL: "postgresql+asyncpg://postgres:postgres@localhost:${{ services.postgres.ports['5432'] }}/pytest_db"
+        run: uv run pytest/integration
