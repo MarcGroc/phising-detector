@@ -1,0 +1,45 @@
+[project]
+name = "phising-detector"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.13"
+dependencies = [
+    "transformers>=4.52.4",
+]
+
+[dependency-groups]
+dev = [
+    "detect-secrets>=1.5.0",
+    "mypy>=1.16.1",
+    "pre-commit>=4.2.0",
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.0.0",
+    "pytest-cov>=6.2.1",
+    "ruff>=0.12.0",
+]
+# ----- tools configuration -----
+# ----- ruff -----
+[tool.ruff]
+
+[tool.ruff.lint]
+exclude = []
+[tool.ruff.lint.pylint]
+# maximum number of statements in a function
+max-statements = 35
+# ----- mypy -----
+[tool.mypy]
+# typehint forced on all functions
+disallow_untyped_defs = true
+# ignore missing imports which dont have type hints
+ignore_missing_imports = true
+# improved error messages
+pretty = true
+# enable strict mode
+strict = true
+# ----- pytest -----
+[tool.pytest.ini_options]
+testpaths = [
+    "tests"
+]
+addopts = "-ra -q --cov=phising-detector"
+asyncio_mode = "auto"
