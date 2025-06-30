@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import SecretStr
+#from pydantic import SecretStr
 
 
 class DBSettings(BaseSettings):
@@ -8,7 +8,7 @@ class DBSettings(BaseSettings):
 
 class SecuritySettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="SEC_")
-    SECRET: SecretStr = 'secret'
+    # SECRET: SecretStr = 'secret'
 
 
 class Settings(BaseSettings):
@@ -16,7 +16,6 @@ class Settings(BaseSettings):
 
     PROJECT_NAME: str = "Phising Detector"
     DEBUG: bool = True
-
     DB: DBSettings = DBSettings()
     SECURITY: SecuritySettings = SecuritySettings()
 
