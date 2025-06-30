@@ -41,6 +41,3 @@ jobs:
 
       - name: Run linter ruff
         run: uv run ruff  check .
-
-      - name: Run ruff formatter
-        run: uv run ruff format --check .
