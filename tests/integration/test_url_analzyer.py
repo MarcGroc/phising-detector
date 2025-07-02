@@ -17,7 +17,7 @@ def test_analyze_url_happy_path(client, mocker):
                  ))
     request_data = {"url":"http://no-redirect.com"}
     #2. Status should be 200
-    response = client.post("/api/v1/analysis/url", json=request_data)
+    response = client.post("/api/v1/analysis/url", data=request_data)
     assert response.status_code == status.HTTP_200_OK
     #3. Check if json structure matches AnalysisResponse
     response_data = response.json()

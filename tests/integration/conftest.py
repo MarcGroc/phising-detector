@@ -1,6 +1,7 @@
 import pytest
-from fastapi.testclient import TestClient
 import pytest_asyncio
+from unittest.mock import MagicMock
+from fastapi.testclient import TestClient
 
 from src.app_factory import create_app
 
@@ -18,3 +19,15 @@ async def client() -> TestClient:
 
     with TestClient(app) as test_client:
         yield test_client
+
+@pytest.fixture
+def mock_trace_redirects(mocker) -> MagicMock:
+    mock = mocker.patch("src.analysis.redirect_tracer.controller._trace_redirects")
+    # Tests can modify mocked values
+    mock.return_value = mocker.Mock(
+        was_redirected=False,
+        chain_completed=True,
+        final_url="http://default-mock-url.com",
+        redirect_chain=[]
+    )
+    return mock
