@@ -1,10 +1,6 @@
 from abc import ABC, abstractmethod
 from pydantic import BaseModel, AnyHttpUrl, Field
 
-class AnalysisRequest(BaseModel):
-    """Requested data, nust be url"""
-    url: AnyHttpUrl
-
 class AnalysisDetail(BaseModel):
     """Single task result schema"""
     check_name: str
