@@ -22,6 +22,17 @@ class InterceptHandler(logging.Handler):
 
         logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
 
+
 def setup_logging():
+    logger.remove()
     logging.basicConfig(handlers=[InterceptHandler()], level=0)
-    logger.add(sys.stdout,level="DEBUG", format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>")
+    logger.add(
+        sys.stdout,
+        level="INFO",
+        format=(
+            "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
+            "<level>{level: <8}</level> | "
+            "<cyan>{module}:{function}:{line}</cyan> — "
+            "<level>{message}</level>"
+        ),
+    )
