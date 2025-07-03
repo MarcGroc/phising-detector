@@ -2,13 +2,15 @@ import asyncio
 from loguru import logger
 from pydantic import AnyHttpUrl
 from src.analysis.redirect_tracer.controller import RedirectCheck
+from src.analysis.ssl_tls_check.controller import SSLCheck
 from src.scoring.scorer import calculate_final_score
 #-------STRATEGY PATTERN----------
 
 # Insert all checks in URL_CHECKS!
 #-------------SEPARATION OF CONCERNS-------
 URL_CHECKS = [
-    RedirectCheck()
+    RedirectCheck(),
+    SSLCheck()
 ]
 
 #---------OPEN/CLOSE PRINCIPLE---------------

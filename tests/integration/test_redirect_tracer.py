@@ -1,7 +1,7 @@
 from fastapi import status
 
 API_PATH = "/api/v1/analysis/url"
-URL = "http://example.com"
+URL = "https://example.com"
 
 
 def test_no_redirects_happy_path(client, mock_trace_redirects):
