@@ -1,19 +1,12 @@
 import pytest
 
+from src.analysis.ssl_tls_check.controller import SSLCheck
 
-@pytest.fixture(scope="session")
-def sample_session_fixture():
-    """Sample pytest fixture for session scope."""
-    return {"foo": "bar"}
+@pytest.fixture
+def ssl_check_instance() -> SSLCheck:
+    return SSLCheck()
 
-
-@pytest.fixture(scope="module")
-def sample_module_fixture():
-    """Sample module pytest fixture for module scope."""
-    return {"foo": "bar"}
-
-
-@pytest.fixture()
-def sample_fixture():
-    """Sample pytest fixture available to all tests."""
-    return {"foo": "bar"}
+@pytest.fixture
+def mock_get_cert_details(mocker):
+    """Mock cert details"""
+    return mocker.patch("src.analysis.ssl_tls_check.controller.get_cert_details")

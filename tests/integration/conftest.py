@@ -22,7 +22,7 @@ async def client() -> TestClient:
 
 @pytest.fixture
 def mock_trace_redirects(mocker) -> MagicMock:
-    mock = mocker.patch("src.analysis.redirect_tracer.controller._trace_redirects")
+    mock = mocker.patch("src.analysis.redirect_tracer.controller._perform_trace_redirects")
     # Tests can modify mocked values
     mock.return_value = mocker.Mock(
         was_redirected=False,
