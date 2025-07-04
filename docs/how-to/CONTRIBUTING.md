@@ -25,6 +25,7 @@
 - cicd/ (devops)
 - docs/ (documentation)
 - tests/ (testing)
+- refactoring/
 
 #### Steps
 - New branch from dev

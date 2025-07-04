@@ -1,7 +1,7 @@
 import httpx
 from pydantic import AnyHttpUrl
 from loguru import logger
-from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
+from tenacity import RetryError, stop_after_attempt, wait_fixed, retry_if_exception_type, AsyncRetrying
 
 from analysis.schema import AnalysisDetail
 from src.analysis.redirect_tracer.schema import RedirectHop, RedirectTraceResult
@@ -31,14 +31,16 @@ def linkedlist_to_pydantic(head: Optional[Node[RedirectHop]]) -> list[RedirectHo
 
 
 # --------------------------------------
-@retry(stop=stop_after_attempt(3),
-       wait=wait_fixed(1),
-       retry=retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError)),
-       )
+# @retry(stop=stop_after_attempt(3),
+#        wait=wait_fixed(1),
+#        retry=retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError)),
+#        )
 async def _perform_trace_redirects(url: AnyHttpUrl) -> RedirectTraceResult:
     """Trace redirects chain and return result in json"""
-
-    async with httpx.AsyncClient(follow_redirects=True, timeout=10) as client:
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36'
+    }
+    async with httpx.AsyncClient(follow_redirects=True, timeout=10, headers=headers) as client:
         # Use HEAD request
         response = await client.head(str(url))
         # -------- Linked list---------------
@@ -68,32 +70,55 @@ async def _perform_trace_redirects(url: AnyHttpUrl) -> RedirectTraceResult:
                                    chain_completed=True)
 
 
-async def get_redirect_trace(url: AnyHttpUrl) -> RedirectTraceResult:
-    """Throw exception if @retry _perform_trace_redirects fails"""
-    try:
-        result = await _perform_trace_redirects(url)
-        return result
-    except httpx.RequestError as e:
-        logger.warning(f"Redirects check  for {url} failed with error: {e}")
-        return RedirectTraceResult(was_redirected=False, final_url=url, redirect_chain=[], chain_completed=False)
-
-
 class RedirectCheck(AbstractCheck):
-    """Check if URL is redirected"""
+    """Check if URL is redirected and return redirect details"""
+    __ATTEMPTS: int = 3
+    __WAIT: int = 2
 
     @property
     def name(self) -> str:
         return "Redirect Check"
 
     async def run(self, url: AnyHttpUrl) -> AnalysisDetail:
-        trace_result = await _perform_trace_redirects(url)
+        # 1. AsyncRetrying instead of retry decorator, solves issue with @retry and httpx
+        retryer = AsyncRetrying(
+            stop=stop_after_attempt(self.__ATTEMPTS),
+            wait=wait_fixed(self.__WAIT),
+            retry=retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError)),
+        )
+
+        # 2. Try again if exception in retry_if_exception_type, then RetryError
+        try:
+            async for attempt in retryer:
+                with attempt:
+                    trace_result = await _perform_trace_redirects(url)
+
+
+        except RetryError as e:
+            logger.warning(
+                f"Redirects check for {url} failed after {self.__ATTEMPTS} retries. Error: {e.last_attempt.attempt_number}")
+            trace_result = RedirectTraceResult(
+                was_redirected=False,
+                final_url=url,
+                redirect_chain=[],
+                chain_completed=False
+            )
+        # 3. Return results
         is_suspicious = trace_result.was_redirected
         score_impact = 10 if is_suspicious else 0
 
-        details = {"chain_completed": trace_result.chain_completed,
-                   "final_url": trace_result.final_url,
-                   "hops": len(trace_result.redirect_chain)}
-        return AnalysisDetail(check_name=self.name,
-                              is_suspicious=is_suspicious,
-                              score_impact=score_impact,
-                              details=details)
+        details = {
+            "chain_completed": trace_result.chain_completed,
+            "final_url": str(trace_result.final_url),
+            "hops": len(trace_result.redirect_chain)
+        }
+
+        return AnalysisDetail(
+            check_name=self.name,
+            is_suspicious=is_suspicious,
+            score_impact=score_impact,
+            details=details
+        )
+# todo https://lnkd.in/e4H33y5g
+# todo imitacja przeglądarki
+# todo hotreload nied ziała i jakby podwojnie sie uruchamiał i hot rerlaod nie dizała w sawgger
