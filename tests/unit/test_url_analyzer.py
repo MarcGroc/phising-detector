@@ -4,49 +4,104 @@ from pydantic import AnyHttpUrl
 from src.analysis.url_analyzer import run_analysis
 from src.analysis.schema import AnalysisDetail
 
+
 @pytest.mark.asyncio
-async def test_run_analysis_orchestrates_checks_correctly(mocker):
-    """Unit test for run_analysis
-    GIVEN: Mocked check modules and scorer
-    WHEN: run_analysis is executed
-    THEN: Should execute run() on each check, parse results to scorer and return correctly parsed dict
+async def test_run_analysis_new_pipeline_happy_path(mocker):
     """
-    test_url = AnyHttpUrl("http://example.com")
+    GIVEN: A URL that will be "redirected" by a mock.
+    WHEN:  run_analysis is executed.
+    THEN:  It should first run RedirectCheck, get the final_url, and then
+           run all other checks on that final_url.
+    """
+    #1.  ARRANGE
+    initial_url = AnyHttpUrl("http://initial.com")
+    final_url = AnyHttpUrl("http://final.com")
 
-    #1. Create Mock AnalysisDetail results
-    mock_1 = AnalysisDetail(check_name="check 1", is_suspicious=True, score_impact=10, details="Details 1")
-    mock_2 = AnalysisDetail(check_name="check 2", is_suspicious=False, score_impact=0, details="Details 2")
-
-    #2. Mock URL_CHECKS with mock.patch
-    mock_1_check = mocker.AsyncMock()
-    mock_1_check.run.return_value = mock_1
-    mock_2_check = mocker.AsyncMock()
-    mock_2_check.run.return_value = mock_2
-
-    mocker.patch(
-        "src.analysis.url_analyzer.URL_CHECKS",
-        [mock_1_check, mock_2_check]
+    # 1.1 Mock results for each check
+    mock_redirect_result = AnalysisDetail(
+        check_name="Redirect Check",
+        is_suspicious=True,
+        score_impact=10,
+        details={"chain_completed": True, "final_url": str(final_url), "hops": 1}
+    )
+    mock_ssl_result = AnalysisDetail(
+        check_name="SSL Check",
+        is_suspicious=False,
+        score_impact=0,
+        details="Certificate OK"
     )
 
-    #3. Mock calculate_final_score from src/scoring/scorer.py
-    #mock_scorer = mocker.patch("src.scoring.scorer.calculate_final_score", return_value=(10, "Low"))
+    # 2. Mock modules instances `url_analyzer`
+    mock_redirect_check_instance = mocker.Mock(run=mocker.AsyncMock(return_value=mock_redirect_result))
+    mocker.patch("src.analysis.url_analyzer.REDIRECT_CHECK", mock_redirect_check_instance)
 
-    #4. WHEN
-    final_result = await run_analysis(test_url)
+    mock_ssl_check_instance = mocker.Mock(run=mocker.AsyncMock(return_value=mock_ssl_result))
+    mocker.patch("src.analysis.url_analyzer.URL_CHECKS", [mock_ssl_check_instance])
 
-    #5. Check if run() was executed on both mocks with correct URL
-    mock_1_check.run.assert_awaited_once_with(test_url)
-    mock_2_check.run.assert_awaited_once_with(test_url)
+    # 3. Mock scorer
+    mock_scorer = mocker.patch("src.analysis.url_analyzer.calculate_final_score", return_value=(10, "Low"))
 
-    #6. Check if scorer was executed with list of results from mocks
-    # mock_scorer.assert_called_once_with([mock_1, mock_2])
+    # --- ACT ---
+    result = await run_analysis(initial_url)
 
-    #7. Check if final result has correct structurer and data from scorer
-    assert final_result["score"] == 10
-    assert final_result["risk_level"] == "Low"
-    assert len(final_result["details"]) == 2
+    # --- ASSERT ---
+    # A. RedirectCheck executed with `initial_url`?
+    mock_redirect_check_instance.run.assert_awaited_once_with(initial_url)
 
-    #8. Check if mock data was correctly converted to dict
-    assert final_result["details"][0] == mock_1.model_dump()
-    assert final_result["details"][1] == mock_2.model_dump()
+    # B. SSLCheck and other modules executed with `final_url`?
+    mock_ssl_check_instance.run.assert_awaited_once_with(final_url)
 
+    # C. Scorer has all_result list?
+    mock_scorer.assert_called_once_with([mock_redirect_result, mock_ssl_result])
+
+    # D. Final answer is correct
+    assert result["score"] == 10
+    assert result["risk_level"] == "Low"
+    assert len(result["details"]) == 2
+    assert result["details"][0] == mock_redirect_result.model_dump()
+    assert result["details"][1] == mock_ssl_result.model_dump()
+
+
+@pytest.mark.asyncio
+async def test_run_analysis_stops_if_redirect_fails(mocker):
+    """
+    GIVEN: RedirectCheck fails to complete the redirect chain.
+    WHEN:  run_analysis is executed.
+    THEN:  It should NOT run any content checks and return early.
+    """
+    # --- ARRANGE ---
+    initial_url = AnyHttpUrl("http://initial.com")
+
+    # 1. Mock failed redirect
+    mock_redirect_failure_result = AnalysisDetail(
+        check_name="Redirect Check",
+        is_suspicious=False,
+        score_impact=0,
+        details={"chain_completed": False, "final_url": str(initial_url), "hops": 0}
+    )
+
+    # 2. Mock dependencies
+    mock_redirect_check_instance = mocker.Mock(run=mocker.AsyncMock(return_value=mock_redirect_failure_result))
+    mocker.patch("src.analysis.url_analyzer.REDIRECT_CHECK", mock_redirect_check_instance)
+
+    mock_content_check_instance = mocker.Mock()  # MOck for URL_CHEKS
+    mocker.patch("src.analysis.url_analyzer.URL_CHECKS", [mock_content_check_instance])
+
+    mock_scorer = mocker.patch("src.analysis.url_analyzer.calculate_final_score", return_value=(0, "None"))
+
+    # --- ACT ---
+    result = await run_analysis(initial_url)
+
+    # --- ASSERT ---
+    # A. Redirect was called?
+    mock_redirect_check_instance.run.assert_awaited_once_with(initial_url)
+
+    # B. If redirect fails other modules shouldn't be executed
+    mock_content_check_instance.run.assert_not_called()
+
+    # C. Scorer should have only one result
+    mock_scorer.assert_called_once_with([mock_redirect_failure_result])
+
+    # D. Final answer
+    assert len(result["details"]) == 1
+    assert result["details"][0]["check_name"] == "Redirect Check"
