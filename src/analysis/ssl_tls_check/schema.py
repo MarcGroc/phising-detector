@@ -1,5 +1,4 @@
-from pydantic import  BaseModel, PastDatetime, FutureDatetime
-
+from pydantic import BaseModel, PastDatetime, FutureDatetime
 
 
 class SSLCHeckResult(BaseModel):
@@ -8,6 +7,3 @@ class SSLCHeckResult(BaseModel):
     valid_from: PastDatetime
     valid_to: FutureDatetime
     issued_by: str
-
-
-
