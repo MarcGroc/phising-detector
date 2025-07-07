@@ -8,8 +8,8 @@ from pydantic import AnyHttpUrl
 from loguru import logger
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 
-from src.analysis.schema import AbstractCheck, AnalysisDetail
-
+from src.analysis.schema import AbstractCheck, AnalysisDetail, ValidationResult
+from src.scoring.constants import ImpactScore
 
 @retry(stop=stop_after_attempt(3),
        wait=wait_fixed(1),
@@ -32,7 +32,7 @@ async def get_cert_details(hostname: str) -> Optional[AnalysisDetail]:
         result = await _perform_cert_lookup(hostname)
         return result
     except (ssl.SSLError, OSError, asyncio.TimeoutError) as e:
-        logger.warning(f"Failed to retrive SSL certificate {hostname}: {e}")
+        logger.warning(f"Failed to retrieve SSL certificate {hostname}: {e}")
         return None
 
 
@@ -47,7 +47,7 @@ class SSLCheck(AbstractCheck):
         # 1. If url does not contain https or hostname, mark as suspicious
         logger.info(f"Checking SSL/TLS for {url}")
         if url.scheme != 'https':
-            return AnalysisDetail(check_name=self.name, is_suspicious=True, score_impact=30,
+            return AnalysisDetail(check_name=self.name, is_suspicious=True, score_impact=ImpactScore.SSL_NO_HTTPS,
                                   details="Site without HTTPS")
 
         hostname = url.host
@@ -58,7 +58,7 @@ class SSLCheck(AbstractCheck):
             )
         cert = await get_cert_details(hostname)
         if not cert:
-            return AnalysisDetail(check_name=self.name, is_suspicious=True, score_impact=20,
+            return AnalysisDetail(check_name=self.name, is_suspicious=True, score_impact=ImpactScore.SSL_FETCH_FAILED,
                                   details="Failed to retrieve SSL certificate. Site may not be using HTTPS or is down.")
         # 2. Cert Validation tasks
         validation_tasks = [
@@ -67,16 +67,16 @@ class SSLCheck(AbstractCheck):
             self._validate_issuer(cert)
         ]
         # 3. Run all tasks
-        results = await asyncio.gather(*validation_tasks)
+        results:list[ValidationResult] = await asyncio.gather(*validation_tasks)
         # 4. Aggregate results
-        total_score = sum(score for score, detail in results)
-        details = [detail for score, detail in results if detail]
+        total_score = sum(score.score_impact for score in results)
+        details = [detail.detail for detail in results if detail.detail is not None]
 
         return AnalysisDetail(check_name=self.name, is_suspicious=total_score > 0,
                               score_impact=total_score,
                               details=" | ".join(details) if details else 'Cert appears to be valid')
 
-    async def _validate_datetime(self, cert: AnalysisDetail) -> tuple[int, str]:
+    async def _validate_datetime(self, cert: AnalysisDetail) -> ValidationResult:
         """Validate datetime data in cert"""
         now = datetime.now(timezone.utc)
         try:
@@ -84,20 +84,20 @@ class SSLCheck(AbstractCheck):
             not_before = datetime.strptime(cert['notBefore'], '%b %d %H:%M:%S %Y %Z').replace(tzinfo=timezone.utc)
             not_after = datetime.strptime(cert['notAfter'], '%b %d %H:%M:%S %Y %Z').replace(tzinfo=timezone.utc)
             if now < not_before:
-                return 20, "Cert not valid yet"
+                return ValidationResult(score_impact=ImpactScore.SSL_NOT_YET_VALID, detail="Cert not valid yet")
             if now > not_after:
-                return 40, "Cert expired"
-            return 0, ""
+                return ValidationResult(score_impact=ImpactScore.SSL_EXPIRED, detail="Cert expired")
+            return ValidationResult()
         except (KeyError, ValueError):
-            return 10, "Couldn't parse cert validity dates"
+            return ValidationResult(score_impact=ImpactScore.SSL_FETCH_FAILED, detail="Couldn't parse cert validity dates")
 
-    async def _validate_issuer(self, cert: AnalysisDetail) -> tuple[int, str]:
+    async def _validate_issuer(self, cert: AnalysisDetail) -> ValidationResult:
         """Validate if cert is self-signed"""
         if cert.get("issuer") == cert.get("subject"):
-            return 40, "Cert self-signed"
-        return 0, ""
+            return ValidationResult(score_impact=ImpactScore.SSL_SELF_SIGNED, detail="Cert self-signed")
+        return ValidationResult(score_impact=ImpactScore.ZERO)
 
-    async def _validate_hostname(self, hostname: str, cert: AnalysisDetail) -> tuple[int, str]:
+    async def _validate_hostname(self, hostname: str, cert: AnalysisDetail) -> ValidationResult:
         """Validate certs SAN(Subject Alternative Name) and CommonName"""
         # 1. ------Generator for SAN and common names, no need to store it in memory
         san_names = (name for name_type, name in cert.get('subjectAltName', []) if
@@ -107,8 +107,8 @@ class SSLCheck(AbstractCheck):
         all_cert_names = itertools.chain(san_names, common_names)
         # 3. if any() return match
         if not any(self._match_hostname(hostname, cert_name) for cert_name in all_cert_names):
-            return 50, f"Hostname {hostname} does not match cert"
-        return 0, ''
+            return ValidationResult(score_impact=ImpactScore.SSL_HOSTNAME_MISMATCH, detail=f"Hostname {hostname} does not match cert")
+        return ValidationResult(score_impact=ImpactScore.ZERO)
 
     def _match_hostname(self, hostname: str, cert_name: str) -> bool:
         """ Check if hostname matches cert including wildcards"""

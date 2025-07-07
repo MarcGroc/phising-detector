@@ -1,13 +1,13 @@
 import httpx
+from typing import Optional, Generic, TypeVar
 from pydantic import AnyHttpUrl
 from loguru import logger
 from tenacity import RetryError, stop_after_attempt, wait_fixed, retry_if_exception_type, AsyncRetrying
 
-from analysis.schema import AnalysisDetail
+from src.analysis.schema import AnalysisDetail
 from src.analysis.redirect_tracer.schema import RedirectHop, RedirectTraceResult
 from src.analysis.schema import AbstractCheck
-
-from typing import Optional, Generic, TypeVar
+from scoring.constants import ImpactScore
 
 # --------- Linked List---------------
 T = TypeVar('T')  # type placeholder
@@ -37,6 +37,7 @@ def linkedlist_to_pydantic(head: Optional[Node[RedirectHop]]) -> list[RedirectHo
 #        )
 async def _perform_trace_redirects(url: AnyHttpUrl) -> RedirectTraceResult:
     """Trace redirects chain and return result in json"""
+    # todo imitacja przeglądarki
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36'
     }
@@ -105,7 +106,7 @@ class RedirectCheck(AbstractCheck):
             )
         # 3. Return results
         is_suspicious = trace_result.was_redirected
-        score_impact = 10 if is_suspicious else 0
+        score_impact = ImpactScore.REDIRECTED if is_suspicious else ImpactScore.ZERO
 
         details = {
             "chain_completed": trace_result.chain_completed,
@@ -119,6 +120,6 @@ class RedirectCheck(AbstractCheck):
             score_impact=score_impact,
             details=details
         )
+# todo lokalny redirect żeby miec pewnośc że przekierowanie działa poprawenie
 # todo https://lnkd.in/e4H33y5g
-# todo imitacja przeglądarki
 # todo hotreload nied ziała i jakby podwojnie sie uruchamiał i hot rerlaod nie dizała w sawgger
