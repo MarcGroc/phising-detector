@@ -22,7 +22,7 @@ def test_redirect_when_redirects(client, mock_trace_redirects, mocker):
         final_url=URL,
         redirect_chain=[mocker.Mock()]
     )
-    request_data = {"url": URL}
+    request_data = {"url": str(URL)}
 
     response = client.post(API_PATH, data=request_data)
     assert response.status_code == status.HTTP_200_OK

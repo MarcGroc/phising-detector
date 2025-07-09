@@ -2,13 +2,14 @@ import httpx
 from typing import Optional, Generic, TypeVar
 from pydantic import AnyHttpUrl
 from loguru import logger
-from tenacity import RetryError, stop_after_attempt, wait_fixed, retry_if_exception_type, AsyncRetrying
+from tenacity import RetryError
 
 from src.analysis.schema import AnalysisDetail
 from src.analysis.redirect_tracer.schema import RedirectHop, RedirectTraceResult
 from src.analysis.schema import AbstractCheck
-from scoring.constants import ImpactScore
-
+from src.scoring.constants import ImpactScore
+from utils.helpers import create_http_retryer
+from utils.constants import HEADERS
 # --------- Linked List---------------
 T = TypeVar('T')  # type placeholder
 
@@ -38,10 +39,7 @@ def linkedlist_to_pydantic(head: Optional[Node[RedirectHop]]) -> list[RedirectHo
 async def _perform_trace_redirects(url: AnyHttpUrl) -> RedirectTraceResult:
     """Trace redirects chain and return result in json"""
     # todo imitacja przeglądarki
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36'
-    }
-    async with httpx.AsyncClient(follow_redirects=True, timeout=10, headers=headers) as client:
+    async with httpx.AsyncClient(follow_redirects=True, timeout=10, headers=HEADERS) as client:
         # Use HEAD request
         response = await client.head(str(url))
         # -------- Linked list---------------
@@ -74,7 +72,6 @@ async def _perform_trace_redirects(url: AnyHttpUrl) -> RedirectTraceResult:
 class RedirectCheck(AbstractCheck):
     """Check if URL is redirected and return redirect details"""
     __ATTEMPTS: int = 3
-    __WAIT: int = 2
 
     @property
     def name(self) -> str:
@@ -82,11 +79,7 @@ class RedirectCheck(AbstractCheck):
 
     async def run(self, url: AnyHttpUrl) -> AnalysisDetail:
         # 1. AsyncRetrying instead of retry decorator, solves issue with @retry and httpx
-        retryer = AsyncRetrying(
-            stop=stop_after_attempt(self.__ATTEMPTS),
-            wait=wait_fixed(self.__WAIT),
-            retry=retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError)),
-        )
+        retryer = create_http_retryer()
 
         # 2. Try again if exception in retry_if_exception_type, then RetryError
         try:
@@ -120,6 +113,4 @@ class RedirectCheck(AbstractCheck):
             score_impact=score_impact,
             details=details
         )
-# todo lokalny redirect żeby miec pewnośc że przekierowanie działa poprawenie
 # todo https://lnkd.in/e4H33y5g
-# todo hotreload nied ziała i jakby podwojnie sie uruchamiał i hot rerlaod nie dizała w sawgger

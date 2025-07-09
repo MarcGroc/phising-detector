@@ -1,8 +1,8 @@
-import  uvicorn
+#import  uvicorn
 from src.app_factory import create_app
 
 app = create_app()
 
 
-if __name__ == "__main__":
-    uvicorn.run("main:app", reload=True, host="0.0.0.0", port=8000, log_level=None, log_config=None)
+# if __name__ == "__main__":
+#     uvicorn.run("main:app", reload=True, host="0.0.0.0", port=8000, log_level=None, log_config=None)
