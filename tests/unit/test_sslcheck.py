@@ -25,8 +25,8 @@ async def test_ssl_check_fails_to_get_cert(ssl_check_instance: SSLCheck, mock_ge
     result = await ssl_check_instance.run(URL_HTTPS)
     # 3. ASSERT
     assert result.is_suspicious is True
-    assert "Failed to retrieve SSL certificate. Site may not be using HTTPS or is down." in result.details
-    mock_get_cert_details.assert_awaited_once_with(URL_HTTPS.host)
+    assert "Failed to retrieve SSL certificate after multiple attempts." in result.details
+    mock_get_cert_details.assert_awaited_once_with(URL_HTTPS)
 
 
 async def test_ssl_validate_datetime(ssl_check_instance: SSLCheck, mock_get_cert_details):
