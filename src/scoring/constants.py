@@ -9,7 +9,8 @@ class ImpactScore(IntEnum):
     MEDIUM = 30
     HIGH = 60
     CRITICAL = 90
-
+    # Hostname
+    NO_HOSTNAME = 15
     # Redirect check
     REDIRECTED = 10
 
