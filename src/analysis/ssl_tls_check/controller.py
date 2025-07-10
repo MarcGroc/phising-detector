@@ -7,31 +7,16 @@ from typing import Optional
 import httpx
 from pydantic import AnyHttpUrl
 from loguru import logger
-from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type, RetryError
+from tenacity import  RetryError
 
 from src.analysis.schema import AbstractCheck, AnalysisDetail, ValidationResult
 from src.scoring.constants import ImpactScore
 from utils.constants import HEADERS
 from utils.helpers import create_http_retryer
 
+__all__ = ["SSLCheck"]
 
-@retry(stop=stop_after_attempt(3),
-       wait=wait_fixed(1),
-       retry=retry_if_exception_type((asyncio.TimeoutError, ssl.SSLError))
-       )
-async def _perform_cert_lookup(hostname: str) -> Optional[dict]:
-    """Estabilish connection with host and returns certificate details"""
-    # Create default SSL context, which verifies CA can be trusted
-    context = ssl.create_default_context()
-    # Connect to https port 443
-    reader, writer = await asyncio.open_connection(host=hostname, port=443, ssl=context)
-    cert = writer.get_extra_info('peercert')
-    writer.close()
-    await writer.wait_closed()
-    return cert
-
-
-async def get_cert_details(url: AnyHttpUrl) -> Optional[dict]:
+async def _get_cert_details(url: AnyHttpUrl) -> Optional[dict]:
     """Instead of asyncio we'll use httpx to get cert"""
     try:
         # Async httpx client with verify SSL
@@ -71,7 +56,7 @@ class SSLCheck(AbstractCheck):
         hostname = url.host
         if not hostname:
             return AnalysisDetail(
-                check_name=self.name, is_suspicious=True, score_impact=10,
+                check_name=self.name, is_suspicious=True, score_impact=ImpactScore.NO_HOSTNAME,
                 details="Could not extract hostname from URL."
             )
         # 1.1 Try again if exception in retry_if_exception_type, then RetryError
@@ -79,7 +64,7 @@ class SSLCheck(AbstractCheck):
         try:
             async for attempt in retryer:
                 with attempt:
-                    cert = await get_cert_details(url)
+                    cert = await _get_cert_details(url)
 
         except RetryError:
             return AnalysisDetail(check_name=self.name, is_suspicious=True, score_impact=ImpactScore.SSL_FETCH_FAILED,

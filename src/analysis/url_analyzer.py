@@ -3,18 +3,20 @@ from loguru import logger
 from pydantic import AnyHttpUrl
 
 from analysis.schema import AnalysisDetail
+from src.scoring.scorer import calculate_final_score
 from src.analysis.redirect_tracer.controller import RedirectCheck
 from src.analysis.ssl_tls_check.controller import SSLCheck
-from src.scoring.scorer import calculate_final_score
+from src.analysis.fuzz_check.controller import FuzzDomainCheck
 #-------STRATEGY PATTERN----------
 
-#-------------SEPARATION OF CONCERNS-------
+#-------SEPARATION OF CONCERNS-------
 # RedirectCheck() Must be done first and return final_url
 REDIRECT_CHECK = RedirectCheck()
 # Insert all checks in URL_CHECKS!
 # All other checks runs on final_url
 URL_CHECKS = [
-    SSLCheck()
+    SSLCheck(),
+    FuzzDomainCheck()
 ]
 
 #---------OPEN/CLOSE PRINCIPLE---------------

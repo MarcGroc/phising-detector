@@ -9,4 +9,4 @@ def ssl_check_instance() -> SSLCheck:
 @pytest.fixture
 def mock_get_cert_details(mocker):
     """Mock cert details"""
-    return mocker.patch("src.analysis.ssl_tls_check.controller.get_cert_details")
+    return mocker.patch("src.analysis.ssl_tls_check.controller._get_cert_details")

@@ -10,6 +10,8 @@ from src.analysis.schema import AbstractCheck
 from src.scoring.constants import ImpactScore
 from utils.helpers import create_http_retryer
 from utils.constants import HEADERS
+
+__all__ = ["RedirectCheck"]
 # --------- Linked List---------------
 T = TypeVar('T')  # type placeholder
 
@@ -20,7 +22,7 @@ class Node(Generic[T]):  # unknown type yet
         self.next = next_node
 
 
-def linkedlist_to_pydantic(head: Optional[Node[RedirectHop]]) -> list[RedirectHop]:
+def _linkedlist_to_pydantic(head: Optional[Node[RedirectHop]]) -> list[RedirectHop]:
     """Convert linked list to pydantic serializable list"""
 
     pydantic_list = []
@@ -60,7 +62,7 @@ async def _perform_trace_redirects(url: AnyHttpUrl) -> RedirectTraceResult:
             else:
                 current.next = new_node
                 current = new_node
-        pydantic_chain = linkedlist_to_pydantic(head)
+        pydantic_chain = _linkedlist_to_pydantic(head)
         # -----------------------------------------------------
         final_url = AnyHttpUrl(str(response.url))
 
@@ -113,4 +115,3 @@ class RedirectCheck(AbstractCheck):
             score_impact=score_impact,
             details=details
         )
-# todo https://lnkd.in/e4H33y5g
