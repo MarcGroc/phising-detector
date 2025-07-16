@@ -7,6 +7,7 @@ from src.scoring.scorer import calculate_final_score
 from src.analysis.redirect_tracer.controller import RedirectCheck
 from src.analysis.ssl_tls_check.controller import SSLCheck
 from src.analysis.fuzz_check.controller import FuzzDomainCheck
+from src.analysis.whois_check.controller import WhoisCheck
 #-------STRATEGY PATTERN----------
 
 #-------SEPARATION OF CONCERNS-------
@@ -16,7 +17,8 @@ REDIRECT_CHECK = RedirectCheck()
 # All other checks runs on final_url
 URL_CHECKS = [
     SSLCheck(),
-    FuzzDomainCheck()
+    FuzzDomainCheck(),
+    WhoisCheck()
 ]
 
 #---------OPEN/CLOSE PRINCIPLE---------------
