@@ -1,0 +1,45 @@
+sequenceDiagram
+    participant User
+    participant API
+    participant Analyzer
+    participant Cache as Redis Cache
+    participant RedirectCheck
+    participant ContentChecks as (SSL, Fuzz, WHOIS...)
+    participant Scorer
+
+    User->>API: POST /api/v1/analysis/url
+    API->>Analyzer: run_analysis(initial_url)
+
+    Analyzer->>Cache: Check cache for(initial_url)
+    Cache-->>Analyzer: Result (Hit or Miss)
+
+    alt Cache Hit
+        Analyzer-->>API: Return cached result
+        API-->>User: Analysis Result (from cache)
+    else Cache Miss
+        Analyzer->>RedirectCheck: run(initial_url)
+        RedirectCheck-->>Analyzer: redirect_result (contains final_url)
+
+        alt Redirect Trace Failed
+            Analyzer->>Scorer: calculate_final_score([redirect_result])
+            Scorer-->>Analyzer: final_score, risk_level
+            Analyzer-->>API: Analysis Result (early exit)
+            API-->>User: Analysis Result
+        end
+
+        Analyzer->>Analyzer: Extract final_url from result
+
+        par Parallel Content Checks on final_url
+            Analyzer->>ContentChecks: run(final_url)
+            ContentChecks-->>Analyzer: content_results
+        end
+
+        Analyzer->>Analyzer: Aggregate all results
+        Analyzer->>Scorer: calculate_final_score(all_results)
+        Scorer-->>Analyzer: final_score, risk_level
+
+        Analyzer->>Cache: Store final result(initial_url, result)
+
+        Analyzer-->>API: Final Analysis Result
+        API-->>User: Final Analysis Result
+    end
