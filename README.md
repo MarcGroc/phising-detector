@@ -19,7 +19,7 @@ A high-performance, asynchronous API designed to identify, analyze, and score ph
 
 The system is designed as a modular, event-driven workflow. An initial redirect trace determines the final URL, which is then passed to a series of concurrent analysis modules. The results are aggregated and scored to produce a final risk assessment.
 
-![Architecture Diagram](docs/architecture_diagram.png) 
+![Architecture Diagram](docs/architecture_v1.png) 
 
 ## Tech Stack
 
