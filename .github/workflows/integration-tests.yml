@@ -28,7 +28,7 @@ jobs:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/pytest_db
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python
         uses: actions/setup-python@v5
